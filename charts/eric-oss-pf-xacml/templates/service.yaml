@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "eric-oss-pf-xacml-service.name" . }}
+  labels:
+    app: {{ template "eric-oss-pf-xacml-service.name" . }}
+  {{- include "eric-oss-pf-xacml.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss-pf-xacml.eric-product-info" .| nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.externalPort }}
+      targetPort: {{ .Values.service.internalPort }}
+      name: {{ .Values.service.portName }}
+  selector:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name }}

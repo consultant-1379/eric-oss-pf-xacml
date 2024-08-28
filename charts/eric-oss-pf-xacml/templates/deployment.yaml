@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "eric-oss-pf-xacml-deployment.name" . }}
+  labels:
+    app: {{ template "eric-oss-pf-xacml-deployment.name" . }}
+  {{- include "eric-oss-pf-xacml.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss-pf-xacml.eric-product-info" .| nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      annotations:
+      {{- include "eric-oss-pf-xacml.eric-product-info" .| nindent 8 }}
+      labels:
+        app: {{ template "eric-oss-pf-xacml-deployment.name" . }}
+        release: {{ .Release.Name }}
+    {{- include "eric-oss-pf-xacml.kubernetes-io-info" .| nindent 8 }}
+    spec:
+      serviceAccountName: {{ template "eric-oss-pf-xacml.name" . }}-sa
+      {{- if  .Values.imageCredentials.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.imageCredentials.pullSecret | quote }}
+      {{- else if .Values.global.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.global.pullSecret | quote }}
+      {{- end }}
+      
+      {{- if (index .Values.podPriority "eric-oss-pf-xacml" "priorityClassName") }}
+      priorityClassName: {{ index .Values.podPriority "eric-oss-pf-xacml" "priorityClassName" | quote }}
+      {{- end }}
+  
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ template "eric-oss-pf-xacml.mainImagePath" . }}"
+          imagePullPolicy: {{ include "eric-oss-pf-xacml.imagePullPolicy" $ | quote }}
+          command: ["/opt/app/policy/pdpx/bin/policy-pdpx.sh"]
+          args: ["/opt/app/policy/pdpx/etc/mounted/config.json"]
+          ports:
+          - containerPort: {{ .Values.service.internalPort }}
+          
+          resources:
+            requests:
+              memory: {{ .Values.resources.xacml.requests.memory | quote}}
+              cpu: {{ .Values.resources.xacml.requests.cpu}}
+              
+              {{- if index $.Values "resources" "xacml" "requests" "ephemeral-storage" }}
+              ephemeral-storage: {{ index $.Values "resources" "xacml" "requests" "ephemeral-storage" | quote }}
+              {{- end }} 
+            limits:
+              memory: {{ .Values.resources.xacml.limits.memory | quote}}
+              cpu: {{ .Values.resources.xacml.limits.cpu }}
+              
+              {{- if index $.Values "resources" "xacml" "limits" "ephemeral-storage" }}
+              ephemeral-storage: {{ index $.Values "resources" "xacml" "limits" "ephemeral-storage" | quote }}
+              {{- end }}
+          
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.service.internalPort }}
+            initialDelaySeconds: {{ .Values.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.liveness.periodSeconds }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.service.internalPort }}
+            initialDelaySeconds: {{ .Values.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readiness.periodSeconds }}
+          volumeMounts:
+          - mountPath: /etc/localtime
+            name: localtime
+            readOnly: true
+          - mountPath: /opt/app/policy/pdpx/etc/mounted
+            name: pdpxconfig
+          securityContext:
+            allowPrivilegeEscalation: true
+            runAsNonRoot: true
+            runAsUser: 1000
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{ toYaml .Values.nodeSelector }}
+      {{- else if .Values.global.nodeSelector }}
+      nodeSelector:
+        {{ toYaml .Values.global.nodeSelector }}
+      {{- end }}
+        {{- if .Values.affinity }}
+        affinity:
+{{ toYaml .Values.affinity | indent 10 }}
+        {{- end }}
+      volumes:
+        - name: localtime
+          hostPath:
+             path: /etc/localtime
+        - name: pdpxconfig
+          configMap:
+            name: {{ include "eric-oss-pf-xacml-configmap.name" . }}
+            defaultMode: 0755

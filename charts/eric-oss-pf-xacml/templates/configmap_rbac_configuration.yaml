@@ -1,0 +1,100 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ template "eric-oss-pf-xacml.name" . }}-rbac-configuration-configmap
+  labels:
+    app: {{ template "eric-oss-pf-xacml.name" . }}
+  {{- include "eric-oss-pf-xacml.kubernetes-io-info" .| nindent 4 }}
+  annotations:
+  {{- include "eric-oss-pf-xacml.eric-product-info" .| nindent 4 }}
+data:
+  rbac-configuration.json: |
+    {
+        "roles": [{
+                "name": "PF_XACML_Admin",
+                "attributes": {
+                    "type": ["internal"]
+                }
+            }, {
+                "name": "PF_XACML_User",
+              "attributes": {
+                    "type": ["internal"]
+                }
+            }
+        ],
+        "authorization": {
+            "resources": [{
+                    "name": "XACML Endpoints",
+                    "type": "urn:eo:pf:resources:xacml",
+                    "ownerManagedAccess": false,
+                    "attributes": {},
+                    "uris": [
+                        "/policy/pdpx/v1",
+                        "/policy/pdpx/v1/**"
+                    ],
+                    "scopes": [{
+                            "name": "PATCH"
+                        }, {
+                            "name": "DELETE"
+                        }, {
+                            "name": "GET"
+                        }, {
+                            "name": "POST"
+                        }, {
+                            "name": "PUT"
+                        }
+                    ]
+                }
+            ],
+            "policies": [{
+                    "name": "Is PF XACML Admin",
+                    "type": "role",
+                    "logic": "POSITIVE",
+                    "decisionStrategy": "UNANIMOUS",
+                    "config": {
+                        "roles": "[{\"id\":\"PF_XACML_Admin\",\"required\":false}]"
+                    }
+                }, {
+                    "name": "Is PF XACML User",
+                    "type": "role",
+                    "logic": "POSITIVE",
+                    "decisionStrategy": "UNANIMOUS",
+                    "config": {
+                        "roles": "[{\"id\":\"PF_XACML_User\",\"required\":false}]"
+                    }
+                }, {
+                    "name": "Admin PF XACML",
+                    "type": "scope",
+                    "logic": "POSITIVE",
+                    "decisionStrategy": "AFFIRMATIVE",
+                    "config": {
+                        "resources": "[\"XACML Endpoints\"]",
+                        "scopes": "[\"PUT\",\"DELETE\",\"POST\",\"PATCH\"]",
+                        "applyPolicies": "[\"Is PF XACML Admin\"]"
+                    }
+                }, {
+                    "name": "View PF XACML",
+                    "type": "scope",
+                    "logic": "POSITIVE",
+                    "decisionStrategy": "AFFIRMATIVE",
+                    "config": {
+                        "resources": "[\"XACML Endpoints\"]",
+                        "scopes": "[\"GET\"]",
+                        "applyPolicies": "[\"Is PF XACML Admin\",\"Is PF XACML User\"]"
+                    }
+                }
+            ],
+            "scopes": [{
+                    "name": "GET"
+                }, {
+                    "name": "POST"
+                }, {
+                    "name": "DELETE"
+                }, {
+                    "name": "PUT"
+                }, {
+                    "name": "PATCH"
+                }
+            ]
+        }
+    }
